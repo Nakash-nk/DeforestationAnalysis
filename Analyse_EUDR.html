@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyse de conformité EUDR — parcelles café et cacao</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fond:#0F1A18;
+  --fond2:#16241F;
+  --fond3:#1D2F28;
+  --trait:#2A3D35;
+  --trait-fort:#3A5248;
+  --texte:#E8EDE9;
+  --texte2:#93A69D;
+  --texte3:#647A70;
+
+  /* légende de classification : ces quatre couleurs portent du sens, pas de la décoration */
+  --faible:#52A76C;
+  --instruire:#D9A036;
+  --eleve:#CF5340;
+  --neval:#6B7C86;
+
+  --eau:#3E7FA6;
+  --protege:#9B6BC4;
+  --route:#B08A5A;
+
+  --r:3px;
+  --mono:"IBM Plex Mono","SF Mono",Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);
+  background:var(--fond);
+  color:var(--texte);
+  font-size:14px;
+  line-height:1.5;
+  overflow:hidden;
+}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;border:none;background:none}
+input,select{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--faible);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- ossature ---------- */
+#app{display:flex;flex-direction:column;height:100%}
+
+header{
+  display:flex;align-items:center;gap:16px;
+  padding:10px 18px;
+  background:var(--fond2);
+  border-bottom:1px solid var(--trait);
+  flex-shrink:0;
+}
+.marque{display:flex;align-items:baseline;gap:10px}
+.marque h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.marque span{font-size:12px;color:var(--texte3)}
+.outils{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+
+.bt{
+  padding:6px 12px;border:1px solid var(--trait-fort);border-radius:var(--r);
+  color:var(--texte2);background:var(--fond3);
+  transition:border-color .12s,color .12s;
+}
+.bt:hover:not(:disabled){border-color:var(--faible);color:var(--texte)}
+.bt:disabled{opacity:.35;cursor:not-allowed}
+.bt.primaire{background:var(--faible);border-color:var(--faible);color:#0B1610;font-weight:500}
+.bt.primaire:hover{filter:brightness(1.1);color:#0B1610}
+
+/* ---------- bandeau de classification ---------- */
+#bandeau{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  background:var(--fond2);border-bottom:1px solid var(--trait);
+  flex-shrink:0;
+}
+.classe{
+  display:flex;align-items:baseline;gap:10px;
+  padding:12px 18px;
+  border-right:1px solid var(--trait);
+  border-top:2px solid transparent;
+  text-align:left;
+  transition:background .12s;
+}
+.classe:last-child{border-right:none}
+.classe:hover{background:var(--fond3)}
+.classe.on{background:var(--fond3)}
+.classe .n{font-family:var(--mono);font-size:24px;font-weight:500;line-height:1}
+.classe .l{font-size:12px;color:var(--texte2);line-height:1.3}
+.classe .pc{font-family:var(--mono);font-size:11px;color:var(--texte3);margin-left:auto}
+.classe[data-c="FAIBLE"] .n{color:var(--faible)}
+.classe[data-c="FAIBLE"].on{border-top-color:var(--faible)}
+.classe[data-c="INSTRUIRE"] .n{color:var(--instruire)}
+.classe[data-c="INSTRUIRE"].on{border-top-color:var(--instruire)}
+.classe[data-c="ELEVE"] .n{color:var(--eleve)}
+.classe[data-c="ELEVE"].on{border-top-color:var(--eleve)}
+.classe[data-c="NEVAL"] .n{color:var(--neval)}
+.classe[data-c="NEVAL"].on{border-top-color:var(--neval)}
+
+/* ---------- corps ---------- */
+#corps{flex:1;display:flex;min-height:0}
+#gauche{width:46%;min-width:380px;display:flex;flex-direction:column;border-right:1px solid var(--trait)}
+#droite{flex:1;display:flex;flex-direction:column;min-width:0}
+
+#recherche{
+  display:flex;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--trait);background:var(--fond2);flex-shrink:0;
+}
+#recherche input,#recherche select{
+  background:var(--fond);border:1px solid var(--trait);border-radius:var(--r);
+  padding:5px 8px;
+}
+#recherche input{flex:1;min-width:0}
+#recherche input::placeholder{color:var(--texte3)}
+
+#zoneTable{flex:1;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{
+  position:sticky;top:0;z-index:2;
+  background:var(--fond2);
+  padding:7px 10px;text-align:left;font-weight:500;font-size:12px;color:var(--texte2);
+  border-bottom:1px solid var(--trait);cursor:pointer;white-space:nowrap;
+}
+thead th:hover{color:var(--texte)}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--trait);vertical-align:top}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--fond2)}
+tbody tr.sel{background:var(--fond3)}
+.num{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap}
+.puce{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle;flex-shrink:0}
+.p-FAIBLE{background:var(--faible)} .p-INSTRUIRE{background:var(--instruire)}
+.p-ELEVE{background:var(--eleve)} .p-NEVAL{background:var(--neval)}
+.codes{font-family:var(--mono);font-size:11px;color:var(--texte3);word-spacing:2px}
+
+/* ---------- carte ---------- */
+#carte{flex:1;background:var(--fond2);min-height:0}
+.leaflet-container{background:#0B1412;font-family:var(--sans)}
+.leaflet-control-attribution{background:rgba(15,26,24,.85)!important;color:var(--texte3)!important;font-size:10px}
+.leaflet-control-attribution a{color:var(--texte2)!important}
+.leaflet-bar a{background:var(--fond2);color:var(--texte);border-color:var(--trait)}
+.leaflet-bar a:hover{background:var(--fond3);color:var(--texte)}
+
+#legende{
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  padding:7px 14px;background:var(--fond2);border-top:1px solid var(--trait);
+  font-size:11px;color:var(--texte2);flex-shrink:0;
+}
+#legende b{font-weight:500;color:var(--texte3)}
+.lg{display:flex;align-items:center;gap:5px}
+.lg i{width:14px;height:3px;display:inline-block;border-radius:2px}
+
+/* ---------- panneau de détail ---------- */
+#detail{
+  position:absolute;right:0;top:0;bottom:0;width:400px;
+  background:var(--fond2);border-left:1px solid var(--trait-fort);
+  overflow-y:auto;z-index:1200;
+  transform:translateX(100%);transition:transform .18s ease-out;
+  box-shadow:-14px 0 34px rgba(0,0,0,.4);
+}
+#detail.ouvert{transform:none}
+.det-tete{
+  position:sticky;top:0;background:var(--fond2);border-bottom:1px solid var(--trait);
+  padding:14px 18px;z-index:2;
+}
+.det-tete h2{font-size:15px;font-weight:600;padding-right:26px}
+.det-tete .sous{font-family:var(--mono);font-size:11px;color:var(--texte3);margin-top:3px}
+.fermer{position:absolute;top:12px;right:14px;color:var(--texte3);font-size:18px;line-height:1}
+.fermer:hover{color:var(--texte)}
+.det-sec{padding:14px 18px;border-bottom:1px solid var(--trait)}
+.det-sec h3{font-size:11px;font-weight:500;color:var(--texte3);margin-bottom:9px}
+.paire{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-size:12.5px}
+.paire span:first-child{color:var(--texte2)}
+.paire span:last-child{font-family:var(--mono);text-align:right}
+
+/* la cascade de décision : l'élément central de l'outil */
+.casc{position:relative;padding-left:24px}
+.casc::before{
+  content:"";position:absolute;left:7px;top:8px;bottom:12px;
+  width:1px;background:var(--trait-fort);
+}
+.etape{position:relative;padding:7px 0 9px}
+.etape::before{
+  content:"";position:absolute;left:-21px;top:11px;
+  width:9px;height:9px;border-radius:50%;
+  background:var(--fond2);border:1.5px solid var(--trait-fort);
+}
+.etape .q{font-size:12.5px;color:var(--texte3)}
+.etape .r{font-size:13px;margin-top:2px;color:var(--texte3)}
+.etape.passe .q{color:var(--texte2)}
+.etape.passe .r{color:var(--texte)}
+.etape.passe::before{border-color:var(--texte2)}
+.etape.arret::before{
+  background:currentColor;border-color:currentColor;
+  width:11px;height:11px;left:-22px;
+}
+.etape.arret .r{font-weight:600}
+.etape.c-FAIBLE{color:var(--faible)} .etape.c-INSTRUIRE{color:var(--instruire)}
+.etape.c-ELEVE{color:var(--eleve)} .etape.c-NEVAL{color:var(--neval)}
+
+.alerte{
+  display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--trait);
+  font-size:12.5px;line-height:1.45;
+}
+.alerte:last-child{border-bottom:none}
+.alerte code{
+  font-family:var(--mono);font-size:11px;color:var(--texte3);
+  flex-shrink:0;width:30px;padding-top:1px;
+}
+.alerte .txt strong{display:block;font-weight:500;margin-bottom:2px}
+.alerte .txt em{font-style:normal;color:var(--texte2);font-size:12px}
+.sv{display:inline-block;padding:0 5px;border-radius:2px;font-size:10px;margin-left:6px;vertical-align:1px}
+.sv-BLOQUANT{background:rgba(207,83,64,.2);color:var(--eleve)}
+.sv-MAJEUR{background:rgba(217,160,54,.2);color:var(--instruire)}
+.sv-MINEUR{background:rgba(107,124,134,.22);color:var(--texte2)}
+
+/* ---------- écran d'accueil ---------- */
+#accueil{
+  position:absolute;inset:0;z-index:1500;
+  background:var(--fond);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  overflow-y:auto;
+}
+.acc{max-width:640px;width:100%}
+.acc h1{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.25}
+.acc .intro{color:var(--texte2);margin:10px 0 26px;max-width:56ch}
+#drop{
+  border:1.5px dashed var(--trait-fort);border-radius:5px;
+  padding:38px 24px;text-align:center;
+  transition:border-color .15s,background .15s;cursor:pointer;
+}
+#drop:hover,#drop.survol{border-color:var(--faible);background:var(--fond2)}
+#drop .gros{font-size:15px;font-weight:500}
+#drop .petit{font-size:12.5px;color:var(--texte3);margin-top:6px}
+.acc-liens{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.acc-cols{
+  display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:30px;
+  padding-top:22px;border-top:1px solid var(--trait);
+}
+.acc-cols h4{font-size:12px;color:var(--texte3);font-weight:500;margin-bottom:7px}
+.acc-cols li{font-size:12.5px;color:var(--texte2);list-style:none;padding:2px 0}
+.acc-cols code{font-family:var(--mono);font-size:11.5px;color:var(--texte)}
+
+/* ---------- modales ---------- */
+.voile{
+  position:fixed;inset:0;background:rgba(6,12,10,.72);z-index:1600;
+  display:none;align-items:center;justify-content:center;padding:24px;
+}
+.voile.ouvert{display:flex}
+.modale{
+  background:var(--fond2);border:1px solid var(--trait-fort);border-radius:5px;
+  max-width:660px;width:100%;max-height:86vh;overflow-y:auto;
+}
+.modale-tete{
+  padding:15px 20px;border-bottom:1px solid var(--trait);
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;background:var(--fond2);
+}
+.modale-tete h2{font-size:15px;font-weight:600}
+.modale-corps{padding:18px 20px}
+.modale-pied{
+  padding:13px 20px;border-top:1px solid var(--trait);
+  display:flex;gap:8px;justify-content:flex-end;
+  position:sticky;bottom:0;background:var(--fond2);
+}
+.champ{display:flex;align-items:center;gap:12px;padding:6px 0}
+.champ label{flex:1;font-size:13px;color:var(--texte2)}
+.champ input,.champ select{
+  background:var(--fond);border:1px solid var(--trait);border-radius:var(--r);
+  padding:5px 8px;width:160px;
+}
+.champ input[type=number]{font-family:var(--mono);text-align:right;width:100px}
+.champ .u{font-family:var(--mono);font-size:11px;color:var(--texte3);width:26px}
+.note{font-size:12.5px;color:var(--texte2);line-height:1.55;margin-bottom:14px}
+.note strong{color:var(--texte);font-weight:500}
+.modale-corps h4{font-size:12px;color:var(--texte3);font-weight:500;margin:18px 0 8px}
+.modale-corps h4:first-child{margin-top:0}
+
+#etat{
+  position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  background:var(--fond3);border:1px solid var(--trait-fort);border-radius:4px;
+  padding:9px 18px;font-size:13px;z-index:1700;display:none;
+}
+#etat.on{display:block}
+
+.vide{padding:40px 20px;text-align:center;color:var(--texte3);font-size:13px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="marque">
+      <h1>Analyse de conformité EUDR</h1>
+      <span>parcelles café et cacao</span>
+    </div>
+    <div class="outils">
+      <button class="bt" id="btCouches">Couches</button>
+      <button class="bt" id="btDefor">Déforestation</button>
+      <button class="bt" id="btParams">Paramètres</button>
+      <button class="bt" id="btMethode">Méthode</button>
+      <button class="bt" id="btExport">Exporter</button>
+      <button class="bt" id="btNouveau">Nouveau fichier</button>
+    </div>
+  </header>
+
+  <div id="bandeau"></div>
+
+  <div id="corps">
+    <div id="gauche">
+      <div id="recherche">
+        <input id="q" type="search" placeholder="Chercher un planteur, un code…">
+        <select id="fMotif"><option value="">Tous les motifs</option></select>
+      </div>
+      <div id="zoneTable"><div class="vide">Aucune parcelle chargée.</div></div>
+    </div>
+    <div id="droite">
+      <div id="carte"></div>
+      <div id="legende"></div>
+    </div>
+  </div>
+
+  <aside id="detail"></aside>
+</div>
+
+<div id="accueil">
+  <div class="acc">
+    <h1>Évaluer le risque de déforestation<br>et d'empiètement sur les aires protégées</h1>
+    <p class="intro">Chargez un fichier de parcelles pour lancer les contrôles de recevabilité,
+      de superposition et de légalité. Tout le traitement reste dans votre navigateur —
+      aucune donnée n'est transmise.</p>
+
+    <div id="drop" tabindex="0" role="button">
+      <div class="gros">Déposer un fichier Excel ou CSV</div>
+      <div class="petit">ou cliquer pour parcourir</div>
+    </div>
+    <input type="file" id="fichier" accept=".xlsx,.xls,.csv" hidden>
+
+    <div class="acc-liens">
+      <button class="bt" id="btDemo">Charger un jeu de démonstration</button>
+      <button class="bt" id="btModele">Télécharger le modèle de fichier</button>
+    </div>
+
+    <div class="acc-cols">
+      <div>
+        <h4>Colonnes attendues</h4>
+        <ul>
+          <li><code>nom</code> · planteur</li>
+          <li><code>code</code> · identifiant unique</li>
+          <li><code>superficie</code> · hectares</li>
+          <li><code>rendement</code> · kg/ha</li>
+          <li><code>latitude</code> · <code>longitude</code></li>
+          <li><code>wkt</code> · polygone, si disponible</li>
+          <li><code>filiere</code>, <code>date</code>, <code>agent</code> · facultatifs</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Ce que fait l'outil</h4>
+        <ul>
+          <li>Recevabilité géométrique et règle des 4 ha</li>
+          <li>Superpositions et doublons entre parcelles</li>
+          <li>Croisement avec les aires protégées</li>
+          <li>Consolidation des résultats de déforestation</li>
+          <li>Export Excel, GeoJSON et carte</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="voile" id="voile"><div class="modale" id="modale"></div></div>
+<div id="etat"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+"use strict";
+
+/* =====================================================================
+   ETAT GLOBAL
+   ===================================================================== */
+const S = {
+  parcelles: [],        // {id, nom, code, filiere, ha, rendement, lat, lon, wkt,
+                        //  geom, geomAnalyse, aire, alertes[], statut, cascade[]}
+  chevauchements: [],
+  couches: { protege: null, eau: null, route: null },
+  defor: {},            // code -> {perte_ha, annee, foret2020, agri2020, avant2020, source}
+  filtreStatut: null,
+  filtreMotif: "",
+  recherche: "",
+  tri: { col: "statut", desc: false },
+  carte: null, calqueParc: null, calqueRef: null, recadrer: true,
+  selection: null,
+  nomFichier: ""
+};
+
+/* Seuils — modifiables par l'utilisateur, exportés avec les résultats
+   pour que l'analyse soit reproductible. */
+const P = {
+  seuil_polygone_ha: 4,
+  date_butoir: 2020,
+  decimales_min: 6,
+  decimales_utiles: 4,
+  tol_superficie_pct: 20,
+  tol_superficie_abs_ha: 0.05,
+  seuil_chevauchement_pct: 5,
+  dist_min_points_m: 30,
+  perte_min_ha: 0.1,
+  emprise_route_m: 20,
+  buffer_protege_m: 500,
+  compacite_min: 0.15,
+  rdc_lat_min: -13.5, rdc_lat_max: 5.4,
+  rdc_lon_min: 12.2,  rdc_lon_max: 31.4
+};
+
+/* Catalogue de contrôles.
+   bloc A = recevabilité de la donnée   -> la parcelle n'est pas évaluable
+   bloc B = plausibilité et doublons    -> vérification terrain
+   bloc C = déforestation (art. 3 a)    -> risque élevé
+   bloc D = légalité, aires protégées (art. 3 b) */
+const CTRL = {
+  A01:{bloc:"A",sev:"BLOQUANT",lib:"Coordonnées absentes ou hors RDC",
+       mot:"Aucun point exploitable. Reprendre le relevé GPS."},
+  A02:{bloc:"A",sev:"BLOQUANT",lib:"Précision GPS inexploitable",
+       mot:"Moins de 4 décimales : l'incertitude dépasse 10 m et la parcelle ne peut pas être située. Reprendre le relevé."},
+  A09:{bloc:"A",sev:"MINEUR",lib:"Moins de six décimales",
+       mot:"L'article 9 exige six décimales dans la déclaration. Précision physique suffisante, à corriger au format avant export."},
+  A03:{bloc:"A",sev:"BLOQUANT",lib:"Parcelle > 4 ha sans polygone",
+       mot:"Au-delà de 4 ha le polygone est obligatoire. Programmer une mission de polygonage."},
+  A04:{bloc:"A",sev:"BLOQUANT",lib:"Polygone invalide",
+       mot:"Trace auto-sécante, non fermée ou de moins de 4 sommets. Refaire le tour de la parcelle."},
+  A05:{bloc:"A",sev:"MAJEUR",lib:"Écart de superficie",
+       mot:"La superficie déclarée ne correspond pas au tracé. Vérifier avec le planteur."},
+  A06:{bloc:"A",sev:"MINEUR",lib:"Forme aberrante",
+       mot:"Tracé très allongé ou en dents de scie. Contrôler le relevé."},
+  A07:{bloc:"A",sev:"BLOQUANT",lib:"WKT tronqué",
+       mot:"Le texte du polygone est coupé — souvent la limite de 32 767 caractères d'Excel. Réimporter en GeoJSON."},
+  A08:{bloc:"A",sev:"MAJEUR",lib:"Axes inversés dans le WKT",
+       mot:"Latitude et longitude semblent permutées. Corrigé automatiquement, à confirmer."},
+  B01:{bloc:"B",sev:"MAJEUR",lib:"Chevauchement avec une autre parcelle",
+       mot:"Deux champs se superposent. Arbitrage terrain nécessaire."},
+  B02:{bloc:"B",sev:"MAJEUR",lib:"Point situé dans le polygone d'un autre",
+       mot:"Le point tombe dans un champ déjà tracé par un autre planteur."},
+  B03:{bloc:"B",sev:"MINEUR",lib:"Points trop proches",
+       mot:"Deux parcelles relevées quasiment au même endroit. Vérifier s'il s'agit du même champ."},
+  B04:{bloc:"B",sev:"MAJEUR",lib:"Doublon entre filières",
+       mot:"Le même champ semble déclaré en café et en cacao."},
+  B05:{bloc:"B",sev:"BLOQUANT",lib:"Parcelle dans un plan d'eau",
+       mot:"Le GPS tombe dans un lac ou une rivière : le relevé est faux."},
+  B06:{bloc:"B",sev:"MINEUR",lib:"Parcelle sur emprise routière",
+       mot:"Point probablement pris depuis la route. Reprendre au centre du champ."},
+  B07:{bloc:"B",sev:"MAJEUR",lib:"Coordonnées identiques à une autre fiche",
+       mot:"Le même GPS a été saisi sur plusieurs lignes. Vérifier la saisie."},
+  C01:{bloc:"C",sev:"BLOQUANT",lib:"Perte forestière après la date butoir",
+       mot:"Perte détectée après le 31/12/2020. Instruire avant toute mise sur le marché."},
+  C02:{bloc:"C",sev:"MAJEUR",lib:"Perte inférieure au seuil",
+       mot:"Perte détectée mais sous le seuil retenu. À vérifier sur imagerie."},
+  C03:{bloc:"C",sev:"MAJEUR",lib:"Analyse de déforestation non renseignée",
+       mot:"Aucun résultat importé pour cette parcelle : le risque ne peut pas être écarté."},
+  D01:{bloc:"D",sev:"BLOQUANT",lib:"Intersection avec une aire protégée",
+       mot:"La parcelle empiète sur une aire protégée. Vérifier le statut foncier."},
+  D02:{bloc:"D",sev:"MINEUR",lib:"Proximité d'une aire protégée",
+       mot:"La parcelle jouxte une aire protégée. Contrôler la limite exacte."}
+};
+
+const LIB_STATUT = {
+  FAIBLE:    "Risque faible",
+  INSTRUIRE: "À instruire",
+  ELEVE:     "Risque élevé",
+  NEVAL:     "Non évaluable"
+};
+
+/* =====================================================================
+   UTILITAIRES
+   ===================================================================== */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const nb = (v, d = 2) => (v === null || v === undefined || isNaN(v)) ? "—" : Number(v).toFixed(d);
+
+function etat(msg) {
+  const e = $("#etat");
+  if (!msg) { e.classList.remove("on"); return; }
+  e.textContent = msg; e.classList.add("on");
+}
+const pause = () => new Promise(r => setTimeout(r, 12));
+
+/* Analyse d'un nombre tolérante aux formats francophones : "1 234,56" */
+function toNum(v) {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  const s = String(v).trim().replace(/\s/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+
+/* Compte les décimales telles qu'écrites dans le fichier source.
+   Un GPS arrondi à 4 décimales garde une incertitude d'environ 11 m,
+   ce qui suffit à faire basculer une petite parcelle chez le voisin. */
+function decimales(v) {
+  if (v === null || v === undefined) return 0;
+  const m = String(v).replace(",", ".").match(/\.(\d+)/);
+  return m ? m[1].replace(/0+$/, "").length : 0;
+}
+
+/* --- Analyseur WKT : POINT, POLYGON, MULTIPOLYGON --- */
+function lireWKT(txt) {
+  if (!txt) return { err: "vide" };
+  let t = String(txt).trim().replace(/^SRID=\d+;/i, "");
+  if (t.length > 32000 && !/\)\s*$/.test(t)) return { err: "tronque" };
+
+  const type = (t.match(/^\s*(MULTIPOLYGON|POLYGON|POINT)/i) || [])[1];
+  if (!type) return { err: "type" };
+  const T = type.toUpperCase();
+
+  // Contrôle d'équilibre des parenthèses : détecte une chaîne coupée
+  let bal = 0;
+  for (const c of t) { if (c === "(") bal++; else if (c === ")") bal--; if (bal < 0) return { err: "parentheses" }; }
+  if (bal !== 0) return { err: "tronque" };
+
+  const lirePaires = s => {
+    const out = [];
+    for (const bloc of s.trim().split(",")) {
+      const p = bloc.trim().split(/\s+/).map(parseFloat);
+      if (p.length < 2 || !isFinite(p[0]) || !isFinite(p[1])) return null;
+      out.push([p[0], p[1]]);
+    }
+    return out;
+  };
+
+  try {
+    if (T === "POINT") {
+      const c = lirePaires(t.replace(/^\s*POINT\s*(Z|M|ZM)?\s*\(/i, "").replace(/\)\s*$/, ""));
+      if (!c) return { err: "coords" };
+      return { type: "Point", coordinates: c[0] };
+    }
+    const anneaux = [];
+    const re = /\(([^()]+)\)/g; let m;
+    while ((m = re.exec(t)) !== null) {
+      const c = lirePaires(m[1]);
+      if (!c) return { err: "coords" };
+      anneaux.push(c);
+    }
+    if (!anneaux.length) return { err: "coords" };
+    if (T === "POLYGON") return { type: "Polygon", coordinates: anneaux };
+
+    // MULTIPOLYGON : on rattache chaque anneau intérieur au polygone qui le contient.
+    // Approche simple et suffisante ici : un polygone par anneau extérieur.
+    return { type: "MultiPolygon", coordinates: anneaux.map(a => [a]) };
+  } catch (e) { return { err: "parse" }; }
+}
+
+/* Détection de l'inversion latitude/longitude.
+   En RDC : longitude 12,2 à 31,4 ; latitude -13,5 à 5,4.
+   Toute valeur > 5,4 est nécessairement une longitude. */
+function axesInverses(coords) {
+  const plat = [];
+  const empiler = c => Array.isArray(c[0]) ? c.forEach(empiler) : plat.push(c);
+  empiler(coords);
+  if (!plat.length) return false;
+  let votesInv = 0, votesOk = 0;
+  for (const [x, y] of plat.slice(0, 200)) {
+    const xEstLon = x >= P.rdc_lon_min && x <= P.rdc_lon_max;
+    const yEstLon = y >= P.rdc_lon_min && y <= P.rdc_lon_max;
+    const xEstLat = x >= P.rdc_lat_min && x <= P.rdc_lat_max;
+    const yEstLat = y >= P.rdc_lat_min && y <= P.rdc_lat_max;
+    if (xEstLon && yEstLat) votesOk++;
+    else if (yEstLon && xEstLat) votesInv++;
+  }
+  return votesInv > votesOk;
+}
+function inverser(coords) {
+  return Array.isArray(coords[0]) ? coords.map(inverser) : [coords[1], coords[0]];
+}
+
+/* Ferme un anneau ouvert : beaucoup d'exports terrain omettent le dernier point. */
+function fermer(anneau) {
+  if (anneau.length < 3) return anneau;
+  const a = anneau[0], z = anneau[anneau.length - 1];
+  if (a[0] !== z[0] || a[1] !== z[1]) return anneau.concat([[a[0], a[1]]]);
+  return anneau;
+}
+function normaliser(g) {
+  if (g.type === "Polygon") g.coordinates = g.coordinates.map(fermer);
+  if (g.type === "MultiPolygon") g.coordinates = g.coordinates.map(p => p.map(fermer));
+  return g;
+}
+
+/* Cercle équivalent à la superficie déclarée, r = racine(A / pi).
+   Sert uniquement à l'analyse de risque et à la détection de doublons.
+   N'est jamais une géométrie recevable au sens de l'article 9 de l'EUDR. */
+function cerclePrudentiel(lon, lat, ha) {
+  if (!ha || ha <= 0) return null;
+  const r = Math.sqrt((ha * 10000) / Math.PI);
+  return turf.circle([lon, lat], r, { steps: 48, units: "meters" }).geometry;
+}
+
+/* Compacité de Polsby-Popper : 4 pi A / P².
+   Un carré vaut environ 0,79, un cercle 1. Sous 0,15 le tracé est suspect. */
+function compacite(feat) {
+  try {
+    const a = turf.area(feat);
+    const p = turf.length(turf.polygonToLine(feat), { units: "meters" });
+    if (!p) return 1;
+    return (4 * Math.PI * a) / (p * p);
+  } catch (e) { return 1; }
+}
+
+/* =====================================================================
+   IMPORT DU FICHIER DE PARCELLES
+   ===================================================================== */
+const MOTIFS_COL = {
+  code:      /^(code|id|farmer.?id|olam|identifiant|ref|matricule)/i,
+  nom:       /^(nom|name|planteur|farmer|producteur|beneficiaire)/i,
+  filiere:   /^(fili[eè]re|produit|culture|crop|commodity|speculation)/i,
+  ha:        /^(superficie|surface|area|ha|taille|planted)/i,
+  rendement: /^(rendement|yield|production|kg)/i,
+  lat:       /^(lat|latitude|y_?coord|gps.?lat)/i,
+  lon:       /^(lon|lng|long|longitude|x_?coord|gps.?lon)/i,
+  wkt:       /^(wkt|polygon|polygone|geom|geometry|trace)/i,
+  date:      /^(date|periode|collecte|releve|survey)/i,
+  agent:     /^(agent|enum|enqueteur|surveyed|collecteur|technicien)/i
+};
+
+function deviner(entetes) {
+  const map = {};
+  for (const [cle, re] of Object.entries(MOTIFS_COL)) {
+    const trouve = entetes.find(h => re.test(String(h).trim()));
+    if (trouve !== undefined) map[cle] = trouve;
+  }
+  // "longitude" satisfait aussi le motif de latitude si mal ordonné : on sépare
+  if (map.lat && map.lon && map.lat === map.lon) delete map.lat;
+  return map;
+}
+
+function lireClasseur(donnees, nomFichier) {
+  const wb = XLSX.read(donnees, { type: "array", cellDates: true, raw: false });
+  // On retient la feuille qui contient le plus de lignes
+  let meilleure = null, maxLignes = 0;
+  for (const nom of wb.SheetNames) {
+    const f = wb.Sheets[nom];
+    const ref = f["!ref"];
+    if (!ref) continue;
+    const n = XLSX.utils.decode_range(ref).e.r;
+    if (n > maxLignes) { maxLignes = n; meilleure = nom; }
+  }
+  if (!meilleure) throw new Error("Le fichier ne contient aucune feuille exploitable.");
+  const lignes = XLSX.utils.sheet_to_json(wb.Sheets[meilleure], { defval: null, raw: false });
+  if (!lignes.length) throw new Error("La feuille « " + meilleure + " » est vide.");
+  S.nomFichier = nomFichier;
+  return lignes;
+}
+
+/* Construit les parcelles à partir des lignes brutes et du mappage de colonnes. */
+function construire(lignes, map) {
+  const out = [];
+  lignes.forEach((l, i) => {
+    const lire = c => map[c] ? l[map[c]] : null;
+    const p = {
+      id: i,
+      ligne: i + 2,
+      code: String(lire("code") ?? ("L" + (i + 2))).trim(),
+      nom: String(lire("nom") ?? "").trim() || "(sans nom)",
+      filiere: String(lire("filiere") ?? "").trim(),
+      ha: toNum(lire("ha")),
+      rendement: toNum(lire("rendement")),
+      latBrut: lire("lat"), lonBrut: lire("lon"),
+      lat: toNum(lire("lat")), lon: toNum(lire("lon")),
+      wkt: (lire("wkt") ?? "").toString().trim(),
+      date: lire("date"), agent: String(lire("agent") ?? "").trim(),
+      alertes: [], cascade: [], statut: null,
+      geom: null, geomAnalyse: null, source: null,
+      aire: null, ecartPct: null, wktErr: null, axesInv: false
+    };
+    out.push(p);
+  });
+  return out;
+}
+
+/* Détermine la géométrie officielle et la géométrie servant à l'analyse.
+   Règle de priorité : le polygone fait foi ; le point ne sert qu'à défaut,
+   complété par le cercle équivalent pour la détection de superposition. */
+function geometriser(p) {
+  if (p.wkt) {
+    const g = lireWKT(p.wkt);
+    if (g.err) {
+      p.wktErr = g.err;
+    } else {
+      if (g.type !== "Point" && axesInverses(g.coordinates)) {
+        g.coordinates = inverser(g.coordinates);
+        p.axesInv = true;
+      }
+      normaliser(g);
+      if (g.type === "Point") {
+        if (p.lon === null) { p.lon = g.coordinates[0]; p.lat = g.coordinates[1]; }
+      } else {
+        p.geom = g; p.source = "POLYGONE";
+        try {
+          p.aire = turf.area({ type: "Feature", geometry: g, properties: {} }) / 10000;
+        } catch (e) { p.wktErr = "aire"; p.geom = null; p.source = null; }
+      }
+    }
+  }
+
+  if (!p.geom && p.lat !== null && p.lon !== null) {
+    p.geom = { type: "Point", coordinates: [p.lon, p.lat] };
+    p.source = "POINT";
+  }
+
+  if (p.source === "POLYGONE") {
+    p.geomAnalyse = p.geom;
+    if (p.lat === null || p.lon === null) {
+      const c = turf.centroid({ type: "Feature", geometry: p.geom, properties: {} });
+      p.lon = c.geometry.coordinates[0]; p.lat = c.geometry.coordinates[1];
+    }
+  } else if (p.source === "POINT") {
+    p.geomAnalyse = cerclePrudentiel(p.lon, p.lat, p.ha) || p.geom;
+  }
+  return p;
+}
+
+/* =====================================================================
+   INDEX SPATIAL PAR GRILLE
+   Sans index, comparer 30 000 parcelles deux à deux ferait 450 millions
+   de tests. La grille ramène cela aux seuls voisins immédiats.
+   ===================================================================== */
+const CELLULE = 0.01; // environ 1,1 km
+
+function indexer(parcelles) {
+  const grille = new Map();
+  for (const p of parcelles) {
+    if (!p.geomAnalyse) continue;
+    const bb = turf.bbox({ type: "Feature", geometry: p.geomAnalyse, properties: {} });
+    p._bb = bb;
+    const x0 = Math.floor(bb[0] / CELLULE), x1 = Math.floor(bb[2] / CELLULE);
+    const y0 = Math.floor(bb[1] / CELLULE), y1 = Math.floor(bb[3] / CELLULE);
+    p._cells = [];
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const k = x + ":" + y;
+      if (!grille.has(k)) grille.set(k, []);
+      grille.get(k).push(p);
+      p._cells.push(k);
+    }
+  }
+  return grille;
+}
+
+function voisins(p, grille) {
+  const vus = new Set(), out = [];
+  const x0 = Math.floor(p._bb[0] / CELLULE) - 1, x1 = Math.floor(p._bb[2] / CELLULE) + 1;
+  const y0 = Math.floor(p._bb[1] / CELLULE) - 1, y1 = Math.floor(p._bb[3] / CELLULE) + 1;
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+    const c = grille.get(x + ":" + y);
+    if (!c) continue;
+    for (const q of c) {
+      if (q.id === p.id || vus.has(q.id)) continue;
+      vus.add(q.id); out.push(q);
+    }
+  }
+  return out;
+}
+
+const chevauchentBB = (a, b) =>
+  !(a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1]);
+
+const feat = g => ({ type: "Feature", geometry: g, properties: {} });
+
+/* =====================================================================
+   MOTEUR D'ANALYSE
+   ===================================================================== */
+function ajouter(p, code, detail, valeur) {
+  p.alertes.push({ code, detail: detail || "", valeur: valeur ?? null });
+}
+
+/* --- Bloc A : recevabilité de la donnée --- */
+function blocA(p) {
+  if (p.wktErr === "tronque" || p.wktErr === "parentheses")
+    ajouter(p, "A07", "Chaîne WKT incomplète (" + p.wkt.length + " caractères)");
+  else if (p.wktErr)
+    ajouter(p, "A04", "WKT illisible : " + p.wktErr);
+
+  if (!p.geom) { ajouter(p, "A01", "Ni polygone ni point exploitable"); return; }
+
+  const dansRDC = p.lat >= P.rdc_lat_min && p.lat <= P.rdc_lat_max
+               && p.lon >= P.rdc_lon_min && p.lon <= P.rdc_lon_max;
+  if (!dansRDC) {
+    ajouter(p, "A01", "Position hors emprise RDC : " + nb(p.lat, 5) + ", " + nb(p.lon, 5));
+    return;
+  }
+
+  if (p.axesInv) ajouter(p, "A08", "Permutation détectée et corrigée automatiquement");
+
+  if (p.source === "POINT") {
+    const d = Math.min(decimales(p.latBrut), decimales(p.lonBrut));
+    const incert = Math.round(111000 / Math.pow(10, d));
+    if (d < P.decimales_utiles)
+      ajouter(p, "A02", d + " décimale(s) — incertitude d'environ " + incert + " m", d);
+    else if (d < P.decimales_min)
+      ajouter(p, "A09", d + " décimale(s) au lieu de 6 (environ " + incert + " m)", d);
+    if (p.ha !== null && p.ha > P.seuil_polygone_ha)
+      ajouter(p, "A03", nb(p.ha) + " ha déclarés avec un simple point", p.ha);
+  }
+
+  if (p.source === "POLYGONE") {
+    const f = feat(p.geom);
+    const anneau = p.geom.type === "Polygon" ? p.geom.coordinates[0] : p.geom.coordinates[0][0];
+    if (!anneau || anneau.length < 4) {
+      ajouter(p, "A04", "Moins de 4 sommets distincts");
+    } else {
+      try {
+        if (turf.kinks(f).features.length > 0) ajouter(p, "A04", "Contour auto-sécant");
+      } catch (e) { ajouter(p, "A04", "Géométrie non calculable"); }
+    }
+    if (p.aire !== null && p.ha !== null && p.ha > 0) {
+      const ecart = Math.abs(p.aire - p.ha);
+      p.ecartPct = (ecart / p.ha) * 100;
+      if (ecart > P.tol_superficie_abs_ha && p.ecartPct > P.tol_superficie_pct)
+        ajouter(p, "A05", "Déclaré " + nb(p.ha) + " ha, tracé " + nb(p.aire) +
+                " ha (écart " + nb(p.ecartPct, 1) + " %)", p.ecartPct);
+    }
+    const c = compacite(f);
+    if (c < P.compacite_min)
+      ajouter(p, "A06", "Indice de compacité " + nb(c, 3), c);
+  }
+}
+
+/* --- Bloc B : superpositions, doublons, plausibilité --- */
+function blocB(parcelles, grille) {
+  const vus = new Map();
+
+  for (const p of parcelles) {
+    if (!p.geomAnalyse || p.alertes.some(a => a.code === "A01")) continue;
+
+    // Doublon strict de coordonnées
+    const cle = p.lat.toFixed(6) + "|" + p.lon.toFixed(6);
+    if (vus.has(cle)) {
+      const autre = vus.get(cle);
+      ajouter(p, "B07", "Identique à " + autre.code + " (" + autre.nom + ")");
+      ajouter(autre, "B07", "Identique à " + p.code + " (" + p.nom + ")");
+    } else vus.set(cle, p);
+
+    for (const q of voisins(p, grille)) {
+      if (q.id <= p.id) continue;
+      if (!chevauchentBB(p._bb, q._bb)) continue;
+
+      const memeFiliere = p.filiere && q.filiere && p.filiere === q.filiere;
+      const filieresDiff = p.filiere && q.filiere && p.filiere !== q.filiere;
+
+      // Point d'une parcelle tombant dans le polygone d'une autre
+      if (p.source === "POINT" && q.source === "POLYGONE") {
+        try {
+          if (turf.booleanPointInPolygon([p.lon, p.lat], feat(q.geom))) {
+            ajouter(p, "B02", "Point à l'intérieur de " + q.code + " (" + q.nom + ")");
+            S.chevauchements.push({ a: p, b: q, type: "POINT_DANS_POLY", ha: null, pctA: null, pctB: null });
+          }
+        } catch (e) {}
+      }
+      if (q.source === "POINT" && p.source === "POLYGONE") {
+        try {
+          if (turf.booleanPointInPolygon([q.lon, q.lat], feat(p.geom))) {
+            ajouter(q, "B02", "Point à l'intérieur de " + p.code + " (" + p.nom + ")");
+            S.chevauchements.push({ a: q, b: p, type: "POINT_DANS_POLY", ha: null, pctA: null, pctB: null });
+          }
+        } catch (e) {}
+      }
+
+      // Chevauchement de surfaces
+      let inter = null;
+      try { inter = turf.intersect(feat(p.geomAnalyse), feat(q.geomAnalyse)); } catch (e) {}
+      if (inter) {
+        const haC = turf.area(inter) / 10000;
+        const aP = turf.area(feat(p.geomAnalyse)) / 10000;
+        const aQ = turf.area(feat(q.geomAnalyse)) / 10000;
+        const pctA = aP ? (haC / aP) * 100 : 0;
+        const pctB = aQ ? (haC / aQ) * 100 : 0;
+        if (Math.max(pctA, pctB) >= P.seuil_chevauchement_pct) {
+          const deuxPoly = p.source === "POLYGONE" && q.source === "POLYGONE";
+          const code = filieresDiff ? "B04" : "B01";
+          const suffixe = deuxPoly ? "" : " (cercles équivalents)";
+          ajouter(p, code, nb(haC, 3) + " ha communs avec " + q.code +
+                  " — " + nb(pctA, 1) + " % de la parcelle" + suffixe, pctA);
+          ajouter(q, code, nb(haC, 3) + " ha communs avec " + p.code +
+                  " — " + nb(pctB, 1) + " % de la parcelle" + suffixe, pctB);
+          S.chevauchements.push({
+            a: p, b: q,
+            type: deuxPoly ? "POLY_POLY" : "CERCLE_CERCLE",
+            ha: haC, pctA, pctB,
+            memeFiliere, filieresDiff
+          });
+        }
+      } else if (p.source === "POINT" && q.source === "POINT") {
+        // Deux points nus, sans superficie exploitable : on teste la distance
+        const d = turf.distance([p.lon, p.lat], [q.lon, q.lat], { units: "meters" });
+        if (d > 0 && d < P.dist_min_points_m) {
+          ajouter(p, "B03", Math.round(d) + " m de " + q.code);
+          ajouter(q, "B03", Math.round(d) + " m de " + p.code);
+        }
+      }
+    }
+  }
+}
+
+/* --- Blocs D et B05/B06 : croisement avec les couches de référence --- */
+function croiserCouches(p) {
+  const g = p.geomAnalyse; if (!g) return;
+  const f = feat(g);
+
+  if (S.couches.protege) {
+    for (const ap of S.couches.protege.features) {
+      let touche = false;
+      try { touche = turf.booleanIntersects(f, ap); } catch (e) {}
+      if (touche) {
+        let part = null;
+        try {
+          const i = turf.intersect(f, ap);
+          if (i) part = (turf.area(i) / turf.area(f)) * 100;
+        } catch (e) {}
+        ajouter(p, "D01", nomCouche(ap) +
+                (part !== null ? " — " + nb(part, 1) + " % de la parcelle" : ""), part);
+        return; // une seule alerte suffit
+      }
+    }
+    // Proximité : test sur le point central, moins coûteux qu'un tampon complet
+    let dmin = Infinity, proche = null;
+    for (const ap of S.couches.protege.features) {
+      try {
+        const lg = turf.polygonToLine(ap);
+        const lignes = lg.type === "FeatureCollection" ? lg.features : [lg];
+        for (const li of lignes) {
+          const d = turf.pointToLineDistance([p.lon, p.lat], li, { units: "meters" });
+          if (d < dmin) { dmin = d; proche = ap; }
+        }
+      } catch (e) {}
+    }
+    if (proche && dmin <= P.buffer_protege_m)
+      ajouter(p, "D02", Math.round(dmin) + " m de " + nomCouche(proche), dmin);
+  }
+
+  if (S.couches.eau) {
+    for (const e of S.couches.eau.features) {
+      let touche = false;
+      try { touche = turf.booleanIntersects(f, e); } catch (err) {}
+      if (touche) { ajouter(p, "B05", nomCouche(e)); break; }
+    }
+  }
+
+  if (S.couches.route) {
+    for (const r of S.couches.route.features) {
+      try {
+        const d = r.geometry.type.includes("LineString")
+          ? turf.pointToLineDistance([p.lon, p.lat], r, { units: "meters" })
+          : null;
+        const dd = Array.isArray(d) ? Math.min(...d) : d;
+        if (dd !== null && dd <= P.emprise_route_m) {
+          ajouter(p, "B06", Math.round(dd) + " m de " + nomCouche(r), dd);
+          break;
+        }
+      } catch (e) {}
+    }
+  }
+}
+
+function nomCouche(f) {
+  const pr = f.properties || {};
+  return pr.NAME || pr.name || pr.nom || pr.Name || pr.NOM || pr.ORIG_NAME || "sans nom";
+}
+
+/* =====================================================================
+   MODÈLE DE DÉCISION
+   Cascade en six étapes. L'ordre compte : on écarte d'abord ce qui n'est
+   pas évaluable, puis ce qui n'était pas de la forêt à la date butoir,
+   puis ce qui était déjà cultivé, puis ce qui a été perturbé avant 2021.
+   L'étape 2 est décisive au Nord-Kivu : le café et le cacao y poussent
+   sous ombrage et une cacaoyère de trente ans ressemble à de la forêt
+   sur une carte à 10 m. Sans elle, l'outil condamne des planteurs qui
+   n'ont jamais coupé un arbre.
+   ===================================================================== */
+function classer(p) {
+  const c = [];
+  const d = S.defor[p.code] || null;
+  const codes = new Set(p.alertes.map(a => a.code));
+  const ok = (q, r) => c.push({ q, r, arret: false });
+
+  // Axe qualité : une sortie en risque faible ne doit jamais masquer
+  // une anomalie de donnée non levée.
+  const defautQualite = () => {
+    const maj = p.alertes.filter(a =>
+      CTRL[a.code].sev !== "MINEUR" && ["A", "B"].includes(CTRL[a.code].bloc));
+    if (maj.length) return "Anomalies à lever — " + maj.map(a => a.code).join(", ");
+    if (codes.has("D02")) return "Parcelle en limite d'aire protégée";
+    return null;
+  };
+
+  const stop = (q, r, st) => {
+    if (st === "FAIBLE") {
+      const pb = defautQualite();
+      if (pb) {
+        c.push({ q, r, arret: false });
+        c.push({ q: "La donnée est-elle fiable ?", r: pb, arret: true, statut: "INSTRUIRE" });
+        p.cascade = c; p.statut = "INSTRUIRE"; return "INSTRUIRE";
+      }
+    }
+    c.push({ q, r, arret: true, statut: st });
+    p.cascade = c; p.statut = st; return st;
+  };
+
+  // Étape 0 — la donnée permet-elle une évaluation ?
+  const bloquants = p.alertes.filter(a => CTRL[a.code].sev === "BLOQUANT" && CTRL[a.code].bloc === "A");
+  if (bloquants.length)
+    return stop("La donnée est-elle recevable ?",
+                "Non — " + bloquants.map(a => a.code).join(", "), "NEVAL");
+  ok("La donnée est-elle recevable ?", "Oui");
+
+  // Étape 5 anticipée — la légalité prime : une parcelle en aire protégée
+  // est un problème quel que soit l'état du couvert forestier.
+  if (codes.has("D01"))
+    return stop("La parcelle est-elle hors aire protégée ?", "Non — empiètement constaté", "ELEVE");
+  ok("La parcelle est-elle hors aire protégée ?",
+     S.couches.protege ? (codes.has("D02") ? "Oui, mais en limite" : "Oui") : "Couche non chargée");
+
+  // Étape 1 — y avait-il de la forêt au 31 décembre 2020 ?
+  if (!d)
+    return stop("Y avait-il de la forêt fin 2020 ?", "Analyse non importée", "INSTRUIRE");
+  if (d.foret2020 === false)
+    return stop("Y avait-il de la forêt fin 2020 ?", "Non — hors couvert forestier", "FAIBLE");
+  ok("Y avait-il de la forêt fin 2020 ?", d.foret2020 === true ? "Oui" : "Indéterminé");
+
+  // Étape 2 — l'usage agricole précédait-il la date butoir ?
+  if (d.agri2020 === true)
+    return stop("L'usage agricole précédait-il 2021 ?",
+                "Oui — culture déjà en place", "FAIBLE");
+  ok("L'usage agricole précédait-il 2021 ?", "Non détecté");
+
+  // Étape 3 — la perturbation est-elle antérieure à la date butoir ?
+  if (d.avant2020 === true && !(d.perte_ha > 0))
+    return stop("La perturbation est-elle antérieure à 2021 ?",
+                "Oui — défrichement antérieur au 31/12/2020", "FAIBLE");
+  ok("La perturbation est-elle antérieure à 2021 ?", "Non ou sans objet");
+
+  // Étape 4 — perte détectée après la date butoir ?
+  const perte = d.perte_ha || 0;
+  if (perte >= P.perte_min_ha) {
+    ajouter(p, "C01", nb(perte, 3) + " ha perdus" +
+            (d.annee ? " (première année " + d.annee + ")" : "") +
+            (d.source ? " — " + d.source : ""), perte);
+    return stop("Perte forestière après le 31/12/2020 ?",
+                "Oui — " + nb(perte, 3) + " ha", "ELEVE");
+  }
+  if (perte > 0) {
+    ajouter(p, "C02", nb(perte, 3) + " ha, sous le seuil de " + P.perte_min_ha + " ha", perte);
+    return stop("Perte forestière après le 31/12/2020 ?",
+                "Trace sous le seuil retenu", "INSTRUIRE");
+  }
+  ok("Perte forestière après le 31/12/2020 ?", "Aucune");
+
+  // Étape finale — la qualité de la donnée, contrôlée par stop()
+  return stop("La donnée est-elle fiable ?", "Oui — aucune anomalie", "FAIBLE");
+}
+
+/* =====================================================================
+   EXÉCUTION COMPLÈTE
+   ===================================================================== */
+async function analyser() {
+  etat("Construction des géométries…"); await pause();
+  S.recadrer = true;
+  S.chevauchements = [];
+  for (const p of S.parcelles) { p.alertes = []; p.cascade = []; }
+  S.parcelles.forEach(geometriser);
+
+  etat("Contrôles de recevabilité…"); await pause();
+  S.parcelles.forEach(blocA);
+
+  etat("Recherche des superpositions…"); await pause();
+  const grille = indexer(S.parcelles);
+  blocB(S.parcelles, grille);
+
+  if (S.couches.protege || S.couches.eau || S.couches.route) {
+    etat("Croisement avec les couches de référence…"); await pause();
+    S.parcelles.forEach(croiserCouches);
+  }
+
+  etat("Classement…"); await pause();
+  S.parcelles.forEach(classer);
+
+  // Dédoublonnage des alertes identiques
+  for (const p of S.parcelles) {
+    const vu = new Set();
+    p.alertes = p.alertes.filter(a => {
+      const k = a.code + "|" + a.detail;
+      if (vu.has(k)) return false; vu.add(k); return true;
+    });
+  }
+
+  etat(null);
+  rendre();
+}
+
+const compteurs = () => {
+  const c = { FAIBLE: 0, INSTRUIRE: 0, ELEVE: 0, NEVAL: 0 };
+  for (const p of S.parcelles) if (c[p.statut] !== undefined) c[p.statut]++;
+  return c;
+};
+
+/* =====================================================================
+   RENDU
+   ===================================================================== */
+function rendre() { bandeau(); tableau(); carte(); legende(); motifs(); }
+
+function bandeau() {
+  const c = compteurs(), tot = S.parcelles.length || 1;
+  $("#bandeau").innerHTML = ["FAIBLE", "INSTRUIRE", "ELEVE", "NEVAL"].map(k => `
+    <button class="classe ${S.filtreStatut === k ? "on" : ""}" data-c="${k}">
+      <span class="n">${c[k]}</span>
+      <span class="l">${LIB_STATUT[k]}</span>
+      <span class="pc">${((c[k] / tot) * 100).toFixed(0)} %</span>
+    </button>`).join("");
+  $$("#bandeau .classe").forEach(b => b.onclick = () => {
+    S.filtreStatut = S.filtreStatut === b.dataset.c ? null : b.dataset.c;
+    rendre();
+  });
+}
+
+function motifs() {
+  const c = new Map();
+  for (const p of S.parcelles) for (const a of p.alertes)
+    c.set(a.code, (c.get(a.code) || 0) + 1);
+  const sel = $("#fMotif");
+  const garde = sel.value;
+  sel.innerHTML = '<option value="">Tous les motifs</option>' +
+    Array.from(c.entries()).sort((a, b) => b[1] - a[1]).map(([k, n]) =>
+      `<option value="${k}">${k} · ${CTRL[k].lib} (${n})</option>`).join("");
+  sel.value = garde;
+}
+
+function filtrees() {
+  const q = S.recherche.toLowerCase();
+  let l = S.parcelles.filter(p =>
+    (!S.filtreStatut || p.statut === S.filtreStatut) &&
+    (!S.filtreMotif || p.alertes.some(a => a.code === S.filtreMotif)) &&
+    (!q || p.nom.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)));
+
+  const ordre = { ELEVE: 0, NEVAL: 1, INSTRUIRE: 2, FAIBLE: 3 };
+  const cle = {
+    statut: p => ordre[p.statut] ?? 9,
+    code:   p => p.code.toLowerCase(),
+    nom:    p => p.nom.toLowerCase(),
+    ha:     p => p.ha ?? -1,
+    alertes:p => -p.alertes.length
+  }[S.tri.col] || (p => 0);
+  l.sort((a, b) => {
+    const x = cle(a), y = cle(b);
+    const r = x < y ? -1 : x > y ? 1 : 0;
+    return S.tri.desc ? -r : r;
+  });
+  return l;
+}
+
+function tableau() {
+  const l = filtrees();
+  if (!l.length) {
+    $("#zoneTable").innerHTML = '<div class="vide">Aucune parcelle ne correspond à ce filtre.</div>';
+    return;
+  }
+  const cap = 3000;
+  const lignes = l.slice(0, cap).map(p => `
+    <tr data-id="${p.id}" class="${S.selection === p.id ? "sel" : ""}">
+      <td><span class="puce p-${p.statut}"></span>${esc(p.code)}</td>
+      <td>${esc(p.nom)}${p.filiere ? ' <span style="color:var(--texte3)">· ' + esc(p.filiere) + "</span>" : ""}</td>
+      <td class="num">${nb(p.ha)}</td>
+      <td class="num" style="color:var(--texte3)">${p.source === "POLYGONE" ? "poly" : "point"}</td>
+      <td class="codes">${p.alertes.map(a => a.code).join(" ") || "—"}</td>
+    </tr>`).join("");
+
+  $("#zoneTable").innerHTML = `<table>
+    <thead><tr>
+      <th data-t="code">Code</th><th data-t="nom">Planteur</th>
+      <th data-t="ha" class="num">ha</th><th>Géom.</th>
+      <th data-t="alertes">Motifs</th>
+    </tr></thead><tbody>${lignes}</tbody></table>` +
+    (l.length > cap ? `<div class="vide">${l.length - cap} lignes supplémentaires masquées — affinez le filtre ou exportez.</div>` : "");
+
+  $$("#zoneTable thead th[data-t]").forEach(th => th.onclick = () => {
+    const c = th.dataset.t;
+    S.tri = { col: c, desc: S.tri.col === c ? !S.tri.desc : false };
+    tableau();
+  });
+  $$("#zoneTable tbody tr").forEach(tr => tr.onclick = () => selectionner(+tr.dataset.id, true));
+}
+
+/* --- Carte --- */
+const COUL = { FAIBLE: "#52A76C", INSTRUIRE: "#D9A036", ELEVE: "#CF5340", NEVAL: "#6B7C86" };
+
+function initCarte() {
+  if (S.carte) return;
+  S.carte = L.map("carte", { preferCanvas: true, zoomControl: true }).setView([-1.0, 29.0], 8);
+  const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxZoom: 19, attribution: "© OpenStreetMap" });
+  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19, attribution: "Esri, Maxar, Earthstar Geographics" });
+  sat.addTo(S.carte);
+  L.control.layers({ "Imagerie satellite": sat, "Fond OpenStreetMap": osm }, null,
+    { position: "topright" }).addTo(S.carte);
+  S.calqueRef = L.layerGroup().addTo(S.carte);
+  S.calqueParc = L.layerGroup().addTo(S.carte);
+}
+
+function carte() {
+  initCarte();
+  S.calqueParc.clearLayers();
+  const l = filtrees(), cap = 4000, bornes = [];
+
+  for (const p of l.slice(0, cap)) {
+    if (!p.geom) continue;
+    const col = COUL[p.statut] || "#888";
+    let ob;
+    if (p.geom.type === "Point") {
+      ob = L.circleMarker([p.lat, p.lon],
+        { radius: 5, color: col, weight: 1.5, fillColor: col, fillOpacity: .55 });
+      bornes.push([p.lat, p.lon]);
+    } else {
+      ob = L.geoJSON(feat(p.geom),
+        { style: { color: col, weight: 1.6, fillColor: col, fillOpacity: .22 } });
+      const b = turf.bbox(feat(p.geom));
+      bornes.push([b[1], b[0]], [b[3], b[2]]);
+    }
+    ob.on("click", () => selectionner(p.id, false));
+    ob.bindTooltip(esc(p.code) + " · " + esc(p.nom), { sticky: true });
+    S.calqueParc.addLayer(ob);
+  }
+  if (bornes.length && S.recadrer) {
+    S.carte.fitBounds(L.latLngBounds(bornes).pad(0.12));
+    S.recadrer = false;
+  }
+  redessinerRef();
+}
+
+function redessinerRef() {
+  if (!S.calqueRef) return;
+  S.calqueRef.clearLayers();
+  const styles = {
+    protege: { color: "#9B6BC4", weight: 1.4, fillColor: "#9B6BC4", fillOpacity: .14, dashArray: "5,4" },
+    eau:     { color: "#3E7FA6", weight: 1.2, fillColor: "#3E7FA6", fillOpacity: .3 },
+    route:   { color: "#B08A5A", weight: 1.2, fillOpacity: 0 }
+  };
+  for (const [k, gj] of Object.entries(S.couches)) {
+    if (!gj) continue;
+    L.geoJSON(gj, { style: styles[k] })
+      .bindTooltip(f => nomCouche(f.feature || f))
+      .addTo(S.calqueRef);
+  }
+}
+
+function legende() {
+  const c = [];
+  for (const k of ["FAIBLE", "INSTRUIRE", "ELEVE", "NEVAL"])
+    c.push(`<span class="lg"><i style="background:${COUL[k]}"></i>${LIB_STATUT[k]}</span>`);
+  if (S.couches.protege) c.push('<span class="lg"><i style="background:#9B6BC4"></i>Aire protégée</span>');
+  if (S.couches.eau)     c.push('<span class="lg"><i style="background:#3E7FA6"></i>Hydrographie</span>');
+  if (S.couches.route)   c.push('<span class="lg"><i style="background:#B08A5A"></i>Voirie</span>');
+  const n = Object.keys(S.defor).length;
+  c.push(`<b style="margin-left:auto">${n ? n + " parcelles avec analyse de déforestation" : "Analyse de déforestation non importée"}</b>`);
+  $("#legende").innerHTML = c.join("");
+}
+
+/* --- Panneau de détail --- */
+function selectionner(id, recentrer) {
+  S.selection = id;
+  const p = S.parcelles.find(x => x.id === id);
+  if (!p) return;
+  tableau();
+  if (recentrer && p.lat !== null && p.lon !== null)
+    S.carte.setView([p.lat, p.lon], Math.max(S.carte.getZoom(), 15));
+
+  const d = S.defor[p.code];
+  const cascade = p.cascade.map(e => `
+    <div class="etape ${e.arret ? "arret c-" + e.statut : "passe"}">
+      <div class="q">${esc(e.q)}</div>
+      <div class="r">${esc(e.r)}</div>
+    </div>`).join("");
+
+  const alertes = p.alertes.length ? p.alertes.map(a => {
+    const c = CTRL[a.code];
+    return `<div class="alerte"><code>${a.code}</code><div class="txt">
+      <strong>${esc(c.lib)}<span class="sv sv-${c.sev}">${c.sev.toLowerCase()}</span></strong>
+      ${a.detail ? "<em>" + esc(a.detail) + "</em><br>" : ""}
+      <em style="color:var(--texte3)">${esc(c.mot)}</em></div></div>`;
+  }).join("") : '<div style="color:var(--texte3);font-size:12.5px">Aucune anomalie relevée.</div>';
+
+  $("#detail").innerHTML = `
+    <div class="det-tete">
+      <button class="fermer" id="btFermerDet" aria-label="Fermer">×</button>
+      <h2>${esc(p.nom)}</h2>
+      <div class="sous">${esc(p.code)} · ligne ${p.ligne} · ${p.source === "POLYGONE" ? "polygone" : "point GPS"}</div>
+    </div>
+    <div class="det-sec">
+      <h3>Chemin de décision</h3>
+      <div class="casc">${cascade}</div>
+    </div>
+    <div class="det-sec">
+      <h3>Données de la parcelle</h3>
+      <div class="paire"><span>Superficie déclarée</span><span>${nb(p.ha)} ha</span></div>
+      ${p.aire !== null ? `<div class="paire"><span>Superficie du tracé</span><span>${nb(p.aire)} ha</span></div>` : ""}
+      ${p.ecartPct !== null ? `<div class="paire"><span>Écart</span><span>${nb(p.ecartPct, 1)} %</span></div>` : ""}
+      <div class="paire"><span>Latitude</span><span>${nb(p.lat, 6)}</span></div>
+      <div class="paire"><span>Longitude</span><span>${nb(p.lon, 6)}</span></div>
+      ${p.rendement !== null ? `<div class="paire"><span>Rendement</span><span>${nb(p.rendement, 0)} kg/ha</span></div>` : ""}
+      ${p.filiere ? `<div class="paire"><span>Filière</span><span>${esc(p.filiere)}</span></div>` : ""}
+      ${p.agent ? `<div class="paire"><span>Agent</span><span>${esc(p.agent)}</span></div>` : ""}
+    </div>
+    ${d ? `<div class="det-sec"><h3>Analyse de déforestation</h3>
+      <div class="paire"><span>Forêt au 31/12/2020</span><span>${d.foret2020 === true ? "oui" : d.foret2020 === false ? "non" : "—"}</span></div>
+      <div class="paire"><span>Usage agricole avant 2021</span><span>${d.agri2020 === true ? "oui" : "non"}</span></div>
+      <div class="paire"><span>Perte après la date butoir</span><span>${nb(d.perte_ha, 3)} ha</span></div>
+      ${d.annee ? `<div class="paire"><span>Première année de perte</span><span>${d.annee}</span></div>` : ""}
+      ${d.source ? `<div class="paire"><span>Source</span><span>${esc(d.source)}</span></div>` : ""}
+      </div>` : ""}
+    <div class="det-sec"><h3>Motifs relevés</h3>${alertes}</div>`;
+
+  $("#detail").classList.add("ouvert");
+  $("#btFermerDet").onclick = () => {
+    $("#detail").classList.remove("ouvert"); S.selection = null; tableau();
+  };
+}
+
+/* =====================================================================
+   MODALES
+   ===================================================================== */
+function modale(titre, corps, boutons) {
+  $("#modale").innerHTML = `
+    <div class="modale-tete"><h2>${titre}</h2><button class="fermer" style="position:static">×</button></div>
+    <div class="modale-corps">${corps}</div>
+    <div class="modale-pied">${boutons || '<button class="bt" data-x>Fermer</button>'}</div>`;
+  $("#voile").classList.add("ouvert");
+  $("#modale .fermer").onclick = fermerModale;
+  $$("#modale [data-x]").forEach(b => b.onclick = fermerModale);
+}
+const fermerModale = () => $("#voile").classList.remove("ouvert");
+$("#voile").onclick = e => { if (e.target.id === "voile") fermerModale(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") fermerModale(); });
+
+/* --- Mappage des colonnes --- */
+function dialogueMappage(lignes) {
+  const entetes = Object.keys(lignes[0]);
+  const map = deviner(entetes);
+  const opts = c => '<option value="">— aucune —</option>' +
+    entetes.map(h => `<option value="${esc(h)}" ${map[c] === h ? "selected" : ""}>${esc(h)}</option>`).join("");
+  const champs = [
+    ["code", "Code du planteur"], ["nom", "Nom du planteur"], ["filiere", "Filière"],
+    ["ha", "Superficie (ha)"], ["rendement", "Rendement"],
+    ["lat", "Latitude"], ["lon", "Longitude"], ["wkt", "Polygone WKT"],
+    ["date", "Date de collecte"], ["agent", "Agent"]
+  ];
+  modale("Associer les colonnes",
+    `<p class="note">${lignes.length} ligne(s) lue(s). Les correspondances ci-dessous ont été
+     détectées automatiquement — corrigez celles qui ne conviennent pas.</p>` +
+    champs.map(([c, l]) =>
+      `<div class="champ"><label>${l}</label><select data-c="${c}">${opts(c)}</select></div>`).join(""),
+    '<button class="bt" data-x>Annuler</button><button class="bt primaire" id="btValiderMap">Analyser</button>');
+
+  $("#btValiderMap").onclick = async () => {
+    const m = {};
+    $$("#modale select[data-c]").forEach(s => { if (s.value) m[s.dataset.c] = s.value; });
+    if (!m.wkt && (!m.lat || !m.lon)) {
+      alert("Il faut au minimum une colonne de polygone WKT, ou un couple latitude / longitude.");
+      return;
+    }
+    fermerModale();
+    S.parcelles = construire(lignes, m);
+    S.selection = null;
+    $("#accueil").style.display = "none";
+    await analyser();
+  };
+}
+
+/* --- Couches de référence --- */
+function dialogueCouches() {
+  const etatC = k => S.couches[k]
+    ? `<span style="color:var(--faible)">${S.couches[k].features.length} objet(s)</span>`
+    : '<span style="color:var(--texte3)">non chargée</span>';
+  modale("Couches de référence",
+    `<p class="note">Chargez des fichiers <strong>GeoJSON en WGS84</strong>. Sources gratuites :
+     limites d'aires protégées de l'ICCN ou WDPA de Protected Planet pour un usage académique,
+     hydrographie et voirie depuis l'extrait OpenStreetMap de la RDC sur Geofabrik.</p>
+     <div class="champ"><label>Aires protégées ${etatC("protege")}</label>
+       <button class="bt" data-l="protege">Charger</button></div>
+     <div class="champ"><label>Hydrographie ${etatC("eau")}</label>
+       <button class="bt" data-l="eau">Charger</button></div>
+     <div class="champ"><label>Voirie ${etatC("route")}</label>
+       <button class="bt" data-l="route">Charger</button></div>
+     <p class="note" style="margin-top:16px">La WDPA interdit l'usage commercial sans
+     autorisation écrite de l'UNEP-WCMC. Un travail de recherche universitaire relève
+     de l'usage non commercial et n'est pas concerné.</p>`,
+    '<button class="bt primaire" data-x>Terminé</button>');
+
+  $$("#modale [data-l]").forEach(b => b.onclick = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".geojson,.json";
+    inp.onchange = () => {
+      const f = inp.files[0]; if (!f) return;
+      const fr = new FileReader();
+      fr.onload = async () => {
+        try {
+          let gj = JSON.parse(fr.result);
+          if (gj.type === "Feature") gj = { type: "FeatureCollection", features: [gj] };
+          if (gj.type !== "FeatureCollection") throw new Error("format");
+          S.couches[b.dataset.l] = gj;
+          fermerModale();
+          if (S.parcelles.length) await analyser(); else { redessinerRef(); legende(); }
+        } catch (e) { alert("Ce fichier n'est pas un GeoJSON exploitable."); }
+      };
+      fr.readAsText(f);
+    };
+    inp.click();
+  });
+}
+
+/* --- Import des résultats de déforestation --- */
+function dialogueDefor() {
+  modale("Résultats de déforestation",
+    `<p class="note">L'analyse raster se fait hors de cet outil, puis se consolide ici.
+     Exécutez vos parcelles dans <strong>Whisp</strong> (Open Foris / FAO) ou dans Earth Engine,
+     puis importez le tableau de résultats. La jointure se fait sur le
+     <strong>code du planteur</strong>.</p>
+     <h4>Colonnes reconnues</h4>
+     <p class="note"><code>code</code> ou <code>plot_id</code> · <code>perte_ha</code> ou
+     <code>loss_ha</code> · <code>annee</code> ou <code>year</code> ·
+     <code>foret2020</code> ou <code>treecover_2020</code> ·
+     <code>agri2020</code> ou <code>commodity_2020</code> ·
+     <code>avant2020</code> · <code>source</code></p>
+     <p class="note">Les valeurs booléennes acceptent oui/non, true/false, 1/0.
+     Une surface de couvert supérieure à zéro vaut « forêt présente ».</p>
+     <div style="margin-top:14px">
+       <button class="bt primaire" id="btChargerDef">Importer un fichier</button>
+       ${Object.keys(S.defor).length ? '<button class="bt" id="btViderDef" style="margin-left:8px">Vider</button>' : ""}
+     </div>
+     <p class="note" style="margin-top:14px">${Object.keys(S.defor).length
+        ? "<strong>" + Object.keys(S.defor).length + "</strong> parcelle(s) renseignée(s)."
+        : "Aucun résultat importé — toutes les parcelles restent « à instruire » sur le volet forestier."}</p>`);
+
+  const bo = $("#btViderDef");
+  if (bo) bo.onclick = async () => { S.defor = {}; fermerModale(); await analyser(); };
+
+  $("#btChargerDef").onclick = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".xlsx,.xls,.csv";
+    inp.onchange = () => {
+      const f = inp.files[0]; if (!f) return;
+      const fr = new FileReader();
+      fr.onload = async () => {
+        try {
+          const wb = XLSX.read(new Uint8Array(fr.result), { type: "array", raw: false });
+          const lignes = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null, raw: false });
+          const pick = (o, ...noms) => {
+            for (const k of Object.keys(o)) {
+              const kk = k.toLowerCase().replace(/[\s_-]/g, "");
+              if (noms.some(n => kk === n || kk.includes(n))) return o[k];
+            }
+            return null;
+          };
+          const bool = v => {
+            if (v === null || v === "") return null;
+            const s = String(v).trim().toLowerCase();
+            if (["oui", "yes", "true", "vrai", "1", "y", "o"].includes(s)) return true;
+            if (["non", "no", "false", "faux", "0", "n"].includes(s)) return false;
+            const n = toNum(v);
+            return n === null ? null : n > 0;
+          };
+          let n = 0;
+          for (const l of lignes) {
+            const code = pick(l, "code", "plotid", "farmerid", "id");
+            if (!code) continue;
+            S.defor[String(code).trim()] = {
+              perte_ha: toNum(pick(l, "perteha", "lossha", "perte", "loss")) || 0,
+              annee: toNum(pick(l, "annee", "year", "lossyear")),
+              foret2020: bool(pick(l, "foret2020", "treecover2020", "foret", "treecover")),
+              agri2020: bool(pick(l, "agri2020", "commodity2020", "agri", "commodity")),
+              avant2020: bool(pick(l, "avant2020", "before2020", "priorloss")),
+              source: (pick(l, "source", "dataset") || "").toString().trim() || null
+            };
+            n++;
+          }
+          fermerModale();
+          etat(n + " résultat(s) importé(s)"); setTimeout(() => etat(null), 2200);
+          if (S.parcelles.length) await analyser(); else legende();
+        } catch (e) { alert("Fichier illisible : " + e.message); }
+      };
+      fr.readAsArrayBuffer(f);
+    };
+    inp.click();
+  };
+}
+
+/* --- Paramètres --- */
+function dialogueParams() {
+  const champs = [
+    ["seuil_polygone_ha", "Polygone obligatoire au-delà de", "ha", .5],
+    ["decimales_min", "Décimales attendues au format", "", 1],
+    ["decimales_utiles", "Décimales sous lesquelles le point est inexploitable", "", 1],
+    ["tol_superficie_pct", "Écart de superficie toléré", "%", 1],
+    ["tol_superficie_abs_ha", "Écart absolu ignoré en deçà de", "ha", .01],
+    ["seuil_chevauchement_pct", "Chevauchement signalé à partir de", "%", 1],
+    ["dist_min_points_m", "Distance minimale entre deux points", "m", 5],
+    ["perte_min_ha", "Perte forestière retenue à partir de", "ha", .01],
+    ["buffer_protege_m", "Alerte de proximité d'aire protégée", "m", 50],
+    ["emprise_route_m", "Demi-largeur d'emprise routière", "m", 5],
+    ["compacite_min", "Compacité minimale acceptée", "", .01]
+  ];
+  modale("Paramètres de l'analyse",
+    `<p class="note">Ces seuils sont exportés avec les résultats. Les faire varier permet
+     de mesurer la sensibilité du classement — un seuil de perte à 0,05 ha au lieu de 0,1 ha
+     ne donne pas la même population de planteurs à risque.</p>
+     <p class="note"><strong>Repère utile :</strong> un pixel Hansen fait 30 × 30 m, soit 0,09 ha.
+     Sur un champ d'un hectare et demi, un seul pixel isolé représente déjà 6 % de la parcelle,
+     et l'erreur de positionnement GPS suffit souvent à le déplacer chez le voisin.</p>` +
+    champs.map(([k, l, u, pas]) =>
+      `<div class="champ"><label>${l}</label>
+       <input type="number" step="${pas}" value="${P[k]}" data-p="${k}">
+       <span class="u">${u}</span></div>`).join(""),
+    '<button class="bt" data-x>Annuler</button><button class="bt primaire" id="btAppliquer">Appliquer et relancer</button>');
+
+  $("#btAppliquer").onclick = async () => {
+    $$("#modale input[data-p]").forEach(i => {
+      const v = parseFloat(i.value);
+      if (isFinite(v)) P[i.dataset.p] = v;
+    });
+    fermerModale();
+    if (S.parcelles.length) await analyser();
+  };
+}
+
+/* --- Méthode --- */
+function dialogueMethode() {
+  modale("Méthode", `
+    <h4>Ce que l'outil produit</h4>
+    <p class="note">Une <strong>évaluation de risque</strong>, pas une déclaration de conformité.
+    Au sens du règlement (UE) 2023/1115, c'est l'opérateur qui met le produit sur le marché
+    européen qui engage sa responsabilité dans la déclaration de diligence raisonnée.
+    Les statuts sont donc nommés « risque faible », « à instruire » et « risque élevé »,
+    jamais « conforme » ou « non conforme ».</p>
+
+    <h4>Quatre familles de contrôles</h4>
+    <p class="note">
+    <strong>A — recevabilité.</strong> Format de la donnée au regard de l'article 9 :
+    coordonnées à six décimales, polygone obligatoire au-delà de quatre hectares,
+    tracé fermé d'au moins quatre sommets non alignés.<br>
+    <strong>B — plausibilité.</strong> Superpositions, doublons, points tombant dans un lac
+    ou sur une route. Ce ne sont pas des infractions : ce sont des relevés à refaire.<br>
+    <strong>C — déforestation.</strong> Article 3 a : perte de couvert après le 31 décembre 2020.<br>
+    <strong>D — légalité.</strong> Article 3 b : empiètement sur une aire protégée,
+    qui s'apprécie au regard du droit congolais.</p>
+
+    <h4>Pourquoi l'ordre de la cascade compte</h4>
+    <p class="note">La question posée à l'étape 2 — l'usage agricole précédait-il la date butoir —
+    est décisive sur les filières café et cacao du Kivu. Ces cultures poussent sous ombrage :
+    sur une carte de couvert forestier à 10 mètres, une cacaoyère de trente ans est
+    indistinguable d'une forêt. Sans cette étape, le modèle classe en risque élevé
+    des planteurs qui n'ont jamais coupé un arbre. C'est le premier facteur de faux positif
+    et le principal reproche adressé aux outils de conformité appliqués aux petits producteurs.</p>
+
+    <h4>Le cercle équivalent</h4>
+    <p class="note">Quand seul un point est disponible, l'outil construit un cercle de rayon
+    égal à la racine de la superficie divisée par pi. Ce cercle sert à détecter les
+    superpositions et à cadrer l'analyse de risque. Il n'est jamais une géométrie recevable :
+    au-delà de quatre hectares, l'EUDR exige un polygone et n'accepte pas un point central
+    entouré d'un cercle comme substitut.</p>
+
+    <h4>Couches gratuites et réutilisables</h4>
+    <p class="note">
+    <strong>GFC2020</strong> du Centre commun de recherche — carte forêt / non-forêt au
+    31 décembre 2020 à 10 m, gratuite et sans restriction d'usage, sur forobs.jrc.ec.europa.eu.<br>
+    <strong>JRC TMF</strong> — année de déforestation et de dégradation en forêt tropicale humide,
+    la meilleure couche disponible sur le bassin du Congo.<br>
+    <strong>Hansen Global Forest Change</strong> — bande de perte annuelle, deux tuiles suffisent
+    pour le Nord-Kivu.<br>
+    <strong>Alertes RADD</strong> — radar, indispensable là où la couverture nuageuse
+    met l'optique en échec.<br>
+    <strong>OpenStreetMap</strong> — hydrographie et voirie.</p>
+
+    <h4>Limites à signaler dans un mémoire</h4>
+    <p class="note">La résolution des couches globales, de 10 à 30 mètres, est du même ordre
+    de grandeur que beaucoup de parcelles familiales du Kivu ; l'erreur de positionnement
+    d'un GPS de terrain se compte en mètres et se cumule à celle des couches ;
+    et la détection optique décroche sous couverture nuageuse permanente.
+    Toute conclusion produite par cet outil est un signalement à instruire,
+    pas une preuve.</p>`);
+}
+
+/* =====================================================================
+   EXPORTS
+   ===================================================================== */
+const auj = () => new Date().toISOString().slice(0, 10);
+
+function telecharger(blob, nom) {
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = u; a.download = nom; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 4000);
+}
+
+function exportExcel() {
+  const wb = XLSX.utils.book_new();
+  const c = compteurs();
+
+  const synth = [
+    ["Analyse de conformité EUDR"], [],
+    ["Fichier source", S.nomFichier || "—"],
+    ["Date de l'analyse", new Date().toLocaleString("fr-FR")],
+    ["Parcelles analysées", S.parcelles.length], [],
+    ["Classement", "Nombre", "Part"],
+    ...["ELEVE", "INSTRUIRE", "NEVAL", "FAIBLE"].map(k =>
+      [LIB_STATUT[k], c[k], S.parcelles.length ? (c[k] / S.parcelles.length) : 0]),
+    [], ["Couches de référence chargées"],
+    ["Aires protégées", S.couches.protege ? S.couches.protege.features.length + " objets" : "non"],
+    ["Hydrographie", S.couches.eau ? S.couches.eau.features.length + " objets" : "non"],
+    ["Voirie", S.couches.route ? S.couches.route.features.length + " objets" : "non"],
+    ["Analyse de déforestation", Object.keys(S.defor).length + " parcelles renseignées"],
+    [], ["Avertissement"],
+    ["Ce document est une évaluation de risque et ne constitue pas une déclaration de conformité."]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(synth), "Synthèse");
+
+  const parc = S.parcelles.map(p => ({
+    code: p.code, planteur: p.nom, filiere: p.filiere,
+    statut: LIB_STATUT[p.statut],
+    geometrie: p.source === "POLYGONE" ? "polygone" : "point",
+    superficie_declaree_ha: p.ha,
+    superficie_tracee_ha: p.aire !== null ? +p.aire.toFixed(4) : null,
+    ecart_pct: p.ecartPct !== null ? +p.ecartPct.toFixed(1) : null,
+    latitude: p.lat, longitude: p.lon,
+    rendement: p.rendement, agent: p.agent,
+    nb_motifs: p.alertes.length,
+    motifs: p.alertes.map(a => a.code).join(" "),
+    perte_ha: S.defor[p.code] ? S.defor[p.code].perte_ha : null,
+    ligne_source: p.ligne
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(parc), "Parcelles");
+
+  const nc = [];
+  for (const p of S.parcelles) for (const a of p.alertes) {
+    const ct = CTRL[a.code];
+    nc.push({
+      code: p.code, planteur: p.nom, statut: LIB_STATUT[p.statut],
+      bloc: ct.bloc, controle: a.code, libelle: ct.lib, severite: ct.sev,
+      detail: a.detail, action_terrain: ct.mot,
+      agent: p.agent, latitude: p.lat, longitude: p.lon
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+    nc.length ? nc : [{ info: "Aucune anomalie relevée" }]), "Motifs");
+
+  const chv = S.chevauchements.map(x => ({
+    parcelle_a: x.a.code, planteur_a: x.a.nom,
+    parcelle_b: x.b.code, planteur_b: x.b.nom,
+    type: x.type,
+    surface_commune_ha: x.ha !== null ? +x.ha.toFixed(4) : null,
+    pct_a: x.pctA !== null ? +x.pctA.toFixed(1) : null,
+    pct_b: x.pctB !== null ? +x.pctB.toFixed(1) : null,
+    filieres_differentes: x.filieresDiff ? "oui" : "non",
+    arbitrage: ""
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+    chv.length ? chv : [{ info: "Aucun chevauchement" }]), "Chevauchements");
+
+  // Synthèse par agent : quand les anomalies se concentrent sur quelques
+  // enquêteurs, le problème se corrige à la source et non ligne à ligne.
+  const parAgent = {};
+  for (const p of S.parcelles) {
+    const a = p.agent || "(non renseigné)";
+    parAgent[a] = parAgent[a] || { agent: a, parcelles: 0, motifs: 0, eleve: 0, non_evaluable: 0 };
+    parAgent[a].parcelles++;
+    parAgent[a].motifs += p.alertes.length;
+    if (p.statut === "ELEVE") parAgent[a].eleve++;
+    if (p.statut === "NEVAL") parAgent[a].non_evaluable++;
+  }
+  const ag = Object.values(parAgent).map(x =>
+    ({ ...x, motifs_par_parcelle: +(x.motifs / x.parcelles).toFixed(2) }))
+    .sort((a, b) => b.motifs_par_parcelle - a.motifs_par_parcelle);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ag), "Par agent");
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+    Object.entries(P).map(([cle, valeur]) => ({ parametre: cle, valeur }))), "Paramètres");
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+    Object.entries(CTRL).map(([code, c]) =>
+      ({ code, bloc: c.bloc, severite: c.sev, libelle: c.lib, action: c.mot }))), "Contrôles");
+
+  XLSX.writeFile(wb, "EUDR_analyse_" + auj() + ".xlsx");
+}
+
+function exportGeoJSON() {
+  const fc = {
+    type: "FeatureCollection",
+    name: "parcelles_eudr",
+    crs: { type: "name", properties: { name: "urn:ogc:def:crs:OGC:1.3/CRS84" } },
+    features: S.parcelles.filter(p => p.geom).map(p => ({
+      type: "Feature",
+      geometry: p.geom,
+      properties: {
+        code: p.code, planteur: p.nom, filiere: p.filiere,
+        statut: p.statut, statut_libelle: LIB_STATUT[p.statut],
+        superficie_declaree_ha: p.ha,
+        superficie_tracee_ha: p.aire !== null ? +p.aire.toFixed(4) : null,
+        geometrie: p.source, motifs: p.alertes.map(a => a.code).join(" "),
+        perte_ha: S.defor[p.code] ? S.defor[p.code].perte_ha : null,
+        agent: p.agent
+      }
+    }))
+  };
+  telecharger(new Blob([JSON.stringify(fc)], { type: "application/geo+json" }),
+    "parcelles_eudr_" + auj() + ".geojson");
+}
+
+function dialogueExport() {
+  modale("Exporter", `
+    <p class="note">Le classeur Excel contient sept onglets : synthèse, parcelles, motifs
+    détaillés, chevauchements, répartition par agent, paramètres utilisés et catalogue
+    des contrôles. Les paramètres sont inclus pour que l'analyse soit reproductible.</p>
+    <p class="note">Le GeoJSON est en WGS84 avec la longitude en premier, prêt à ouvrir
+    dans QGIS pour la cartographie de votre mémoire.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <button class="bt primaire" id="exXls">Classeur Excel</button>
+      <button class="bt" id="exGeo">GeoJSON</button>
+    </div>`);
+  $("#exXls").onclick = () => { exportExcel(); fermerModale(); };
+  $("#exGeo").onclick = () => { exportGeoJSON(); fermerModale(); };
+}
+
+function modeleFichier() {
+  const wb = XLSX.utils.book_new();
+  const ex = [{
+    code: "PL-0001", nom: "Exemple Planteur", filiere: "CACAO",
+    superficie_ha: 1.75, rendement_kg_ha: 620,
+    latitude: -0.847213, longitude: 29.204871,
+    wkt: "POLYGON((29.204 -0.847, 29.2055 -0.847, 29.2055 -0.8482, 29.204 -0.8482, 29.204 -0.847))",
+    date_collecte: "2026-03-14", agent: "Nom de l'enquêteur"
+  }];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ex), "Parcelles");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["Colonne", "Obligatoire", "Remarque"],
+    ["code", "oui", "Identifiant unique — sert de clé avec les résultats de déforestation"],
+    ["nom", "recommandé", ""],
+    ["filiere", "facultatif", "Permet de détecter les doublons entre café et cacao"],
+    ["superficie_ha", "oui", "Au-delà de 4 ha, le polygone devient obligatoire"],
+    ["rendement_kg_ha", "facultatif", ""],
+    ["latitude / longitude", "oui si pas de WKT", "Six décimales minimum"],
+    ["wkt", "recommandé", "POLYGON((lon lat, …)) — le polygone fait foi sur le point"],
+    ["date_collecte", "recommandé", "Exigée dans la déclaration de diligence raisonnée"],
+    ["agent", "recommandé", "Permet de localiser les anomalies systématiques"],
+    [], ["Attention"],
+    ["Une cellule Excel est limitée à 32 767 caractères : au-delà d'environ 1 300 sommets,"],
+    ["le WKT est tronqué silencieusement. Passer par un GeoJSON dans ce cas."]
+  ]), "Notice");
+  XLSX.writeFile(wb, "Modele_parcelles_EUDR.xlsx");
+}
+
+/* =====================================================================
+   JEU DE DÉMONSTRATION
+   Parcelles synthétiques du Nord-Kivu, avec des anomalies délibérées
+   pour vérifier chaque contrôle.
+   ===================================================================== */
+function demo() {
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const lignes = [], defor = {};
+  const noms = ["Kambale", "Masika", "Muhindo", "Kavira", "Paluku", "Katungu", "Sivihwa",
+                "Mumbere", "Furaha", "Bahati", "Kasereka", "Nzanzu", "Vahwere", "Syaghuswa"];
+  const prenoms = ["Jean", "Alphonse", "Marie", "Espérance", "Joseph", "Kahindo",
+                   "Christine", "Emmanuel", "Sifa", "Désiré"];
+  const filieres = ["CACAO", "CAFE_ARABICA", "CAFE_ROBUSTA"];
+
+  const carre = (lon, lat, ha) => {
+    const c = Math.sqrt(ha * 10000) / 2;
+    const dLat = c / 110540, dLon = c / (111320 * Math.cos(lat * Math.PI / 180));
+    const pts = [[lon - dLon, lat - dLat], [lon + dLon, lat - dLat],
+                 [lon + dLon, lat + dLat], [lon - dLon, lat + dLat], [lon - dLon, lat - dLat]];
+    return "POLYGON((" + pts.map(p => p[0].toFixed(6) + " " + p[1].toFixed(6)).join(", ") + "))";
+  };
+
+  for (let i = 1; i <= 240; i++) {
+    const code = "PL-" + String(i).padStart(4, "0");
+    const lon = rnd(28.95, 29.45), lat = rnd(-1.15, 0.55);
+    const ha = +rnd(0.4, 3.6).toFixed(2);
+    const avecPoly = Math.random() < 0.62;
+    lignes.push({
+      code, nom: prenoms[i % prenoms.length] + " " + noms[i % noms.length],
+      filiere: filieres[i % 3], superficie_ha: ha,
+      rendement_kg_ha: Math.round(rnd(180, 1100)),
+      latitude: +lat.toFixed(6), longitude: +lon.toFixed(6),
+      wkt: avecPoly ? carre(lon, lat, ha) : "",
+      date_collecte: "2026-0" + (1 + (i % 5)) + "-1" + (i % 9),
+      agent: ["Kule M.", "Sibo N.", "Mbusa T.", "Nzuva K."][i % 4]
+    });
+    const r = Math.random();
+    defor[code] = r < 0.55
+      ? { foret2020: false, agri2020: false, avant2020: false, perte_ha: 0, source: "GFC2020 V3" }
+      : r < 0.78
+      ? { foret2020: true, agri2020: true, avant2020: false, perte_ha: 0, source: "GFC2020 V3 + FDaP" }
+      : r < 0.88
+      ? { foret2020: true, agri2020: false, avant2020: true, perte_ha: 0, source: "JRC TMF" }
+      : r < 0.95
+      ? { foret2020: true, agri2020: false, avant2020: false,
+          perte_ha: +rnd(0.12, 0.9).toFixed(3), annee: 2021 + Math.floor(rnd(0, 5)), source: "Hansen GFC" }
+      : { foret2020: true, agri2020: false, avant2020: false,
+          perte_ha: +rnd(0.01, 0.08).toFixed(3), annee: 2023, source: "RADD" };
+  }
+
+  // Anomalies délibérées, une par contrôle
+  const b = lignes[10];
+  lignes.push({ ...b, code: "PL-9001", nom: "Doublon Exact",
+                agent: "Kule M." });                                        // B07
+  lignes.push({ ...lignes[20], code: "PL-9002", nom: "Doublon Filière",
+                filiere: lignes[20].filiere === "CACAO" ? "CAFE_ARABICA" : "CACAO" }); // B04
+  lignes.push({ code: "PL-9003", nom: "Grande Parcelle Sans Polygone", filiere: "CACAO",
+                superficie_ha: 7.4, rendement_kg_ha: 540,
+                latitude: -0.512340, longitude: 29.187650, wkt: "",
+                date_collecte: "2026-02-11", agent: "Sibo N." });           // A03
+  lignes.push({ code: "PL-9004", nom: "GPS Peu Précis", filiere: "CAFE_ROBUSTA",
+                superficie_ha: 1.2, rendement_kg_ha: 400,
+                latitude: -0.71, longitude: 29.22, wkt: "",
+                date_collecte: "2026-02-12", agent: "Sibo N." });           // A02
+  lignes.push({ code: "PL-9005", nom: "Tracé Auto-Sécant", filiere: "CACAO",
+                superficie_ha: 1.5, rendement_kg_ha: 610,
+                latitude: -0.330000, longitude: 29.300000,
+                wkt: "POLYGON((29.30 -0.33, 29.305 -0.335, 29.30 -0.335, 29.305 -0.33, 29.30 -0.33))",
+                date_collecte: "2026-03-01", agent: "Mbusa T." });          // A04
+  lignes.push({ code: "PL-9006", nom: "Axes Inversés", filiere: "CACAO",
+                superficie_ha: 1.1, rendement_kg_ha: 500,
+                latitude: -0.400000, longitude: 29.100000,
+                wkt: carre(29.100000, -0.400000, 1.1).replace(/POLYGON\(\((.*)\)\)/,
+                       (m, g) => "POLYGON((" + g.split(", ").map(c => {
+                         const [a, b] = c.split(" "); return b + " " + a; }).join(", ") + "))"),
+                date_collecte: "2026-03-02", agent: "Mbusa T." });          // A08
+  lignes.push({ code: "PL-9007", nom: "Superficie Incohérente", filiere: "CAFE_ARABICA",
+                superficie_ha: 6.0, rendement_kg_ha: 700,
+                latitude: -0.250000, longitude: 29.350000,
+                wkt: carre(29.350000, -0.250000, 1.0),
+                date_collecte: "2026-03-03", agent: "Nzuva K." });          // A05
+  lignes.push({ code: "PL-9008", nom: "Position Hors RDC", filiere: "CACAO",
+                superficie_ha: 2.0, rendement_kg_ha: 600,
+                latitude: 48.85, longitude: 2.35, wkt: "",
+                date_collecte: "2026-03-04", agent: "Nzuva K." });          // A01
+
+  // Deux parcelles volontairement superposées
+  const lonC = 29.052731, latC = -0.903184;
+  lignes.push({ code: "PL-9009", nom: "Chevauchement A", filiere: "CACAO",
+                superficie_ha: 2.0, rendement_kg_ha: 580,
+                latitude: latC, longitude: lonC, wkt: carre(lonC, latC, 2.0),
+                date_collecte: "2026-03-05", agent: "Kule M." });
+  lignes.push({ code: "PL-9010", nom: "Chevauchement B", filiere: "CACAO",
+                superficie_ha: 2.0, rendement_kg_ha: 590,
+                latitude: latC + 0.0004, longitude: lonC + 0.0006,
+                wkt: carre(lonC + 0.0006, latC + 0.0004, 2.0),
+                date_collecte: "2026-03-05", agent: "Kule M." });           // B01
+  lignes.push({ code: "PL-9011", nom: "Point Dans Le Champ Voisin", filiere: "CAFE_ARABICA",
+                superficie_ha: 0.8, rendement_kg_ha: 450,
+                latitude: latC, longitude: lonC, wkt: "",
+                date_collecte: "2026-03-06", agent: "Kule M." });           // B02
+
+  for (const c of ["PL-9001", "PL-9002", "PL-9003", "PL-9004", "PL-9005", "PL-9006",
+                   "PL-9007", "PL-9009", "PL-9010", "PL-9011"])
+    defor[c] = { foret2020: true, agri2020: true, avant2020: false, perte_ha: 0, source: "GFC2020 V3" };
+  defor["PL-9010"] = { foret2020: true, agri2020: false, avant2020: false,
+                       perte_ha: 0.64, annee: 2023, source: "Hansen GFC" };
+
+  S.defor = defor;
+  S.nomFichier = "jeu de démonstration";
+  return lignes;
+}
+
+/* =====================================================================
+   BRANCHEMENTS
+   ===================================================================== */
+function chargerFichier(f) {
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onerror = () => alert("Lecture impossible.");
+  fr.onload = () => {
+    try {
+      const lignes = lireClasseur(new Uint8Array(fr.result), f.name);
+      dialogueMappage(lignes);
+    } catch (e) { alert("Fichier illisible : " + e.message); }
+  };
+  fr.readAsArrayBuffer(f);
+}
+
+$("#drop").onclick = () => $("#fichier").click();
+$("#drop").onkeydown = e => { if (e.key === "Enter" || e.key === " ") $("#fichier").click(); };
+$("#fichier").onchange = e => chargerFichier(e.target.files[0]);
+
+["dragenter", "dragover"].forEach(ev =>
+  $("#drop").addEventListener(ev, e => {
+    e.preventDefault(); $("#drop").classList.add("survol");
+  }));
+["dragleave", "drop"].forEach(ev =>
+  $("#drop").addEventListener(ev, e => {
+    e.preventDefault(); $("#drop").classList.remove("survol");
+  }));
+$("#drop").addEventListener("drop", e => chargerFichier(e.dataTransfer.files[0]));
+
+$("#btDemo").onclick = async () => {
+  const lignes = demo();
+  $("#accueil").style.display = "none";
+  S.parcelles = construire(lignes, {
+    code: "code", nom: "nom", filiere: "filiere", ha: "superficie_ha",
+    rendement: "rendement_kg_ha", lat: "latitude", lon: "longitude",
+    wkt: "wkt", date: "date_collecte", agent: "agent"
+  });
+  await analyser();
+};
+$("#btModele").onclick = modeleFichier;
+$("#btCouches").onclick = dialogueCouches;
+$("#btDefor").onclick = dialogueDefor;
+$("#btParams").onclick = dialogueParams;
+$("#btMethode").onclick = dialogueMethode;
+$("#btExport").onclick = () => {
+  if (!S.parcelles.length) { alert("Chargez d'abord un fichier de parcelles."); return; }
+  dialogueExport();
+};
+$("#btNouveau").onclick = () => {
+  $("#accueil").style.display = "flex";
+  $("#detail").classList.remove("ouvert");
+};
+
+let tempo;
+$("#q").oninput = e => {
+  clearTimeout(tempo);
+  tempo = setTimeout(() => { S.recherche = e.target.value.trim(); tableau(); carte(); }, 220);
+};
+$("#fMotif").onchange = e => { S.filtreMotif = e.target.value; rendre(); };
+
+window.addEventListener("resize", () => { if (S.carte) S.carte.invalidateSize(); });
+bandeau();
+</script>
+</body>
+</html>
